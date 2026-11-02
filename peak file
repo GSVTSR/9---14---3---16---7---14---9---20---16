@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>■</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#000;color:#fff;font-family:"Courier New",monospace;overflow:hidden}
+  .screen{display:none;position:fixed;inset:0;align-items:center;justify-content:center;flex-direction:column}
+  .screen.active{display:flex}
+
+  /* MENU (botones en vertical) */
+  #menu .opts{display:flex;flex-direction:column;align-items:center;gap:1.8rem}
+  .opt{background:none;border:1px solid #fff;color:#fff;font:inherit;font-size:1.4rem;
+       letter-spacing:.3em;width:14rem;height:4rem;cursor:pointer;transition:background .2s,color .2s}
+  .opt:hover:not(:disabled){background:#fff;color:#000}
+  .opt:disabled{border-color:#444;cursor:not-allowed}
+
+  .back{position:fixed;top:1rem;left:1rem;background:none;border:none;color:#777;font:inherit;cursor:pointer;z-index:5}
+  .back:hover{color:#fff}
+
+  /* VIGENERE */
+  #blue .word{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center}
+  .tile{width:clamp(48px,10vw,110px);height:clamp(64px,13vw,140px);display:flex;align-items:center;
+        justify-content:center;font-size:clamp(2.5rem,8vw,6rem);font-weight:bold}
+  .tile.green{background:#00c853}
+  .tile.red{background:#e53935}
+
+  /* GAME */
+  #game canvas{display:block;width:100%;height:100%;cursor:none}
+  #morse{display:none;position:fixed;inset:0;background:#000;align-items:center;justify-content:center;
+         flex-direction:column;gap:2rem;text-align:center;padding:1rem;z-index:4}
+  #morse.show{display:flex}
+  #morse p{font-size:clamp(1.2rem,3.5vw,2.4rem);letter-spacing:.35em;word-spacing:1.5em;line-height:1.8}
+
+  /* ? */
+  #secret{background:#000}
+  #secret .msg{position:fixed;top:1.5rem;right:2rem;color:#111;font-size:1.3rem;letter-spacing:.2em}
+</style>
+</head>
+<body>
+
+<!-- MENU -->
+<div id="menu" class="screen">
+  <div class="opts">
+    <button class="opt" onclick="go('blue')">blue</button>
+    <button class="opt" onclick="go('is')">is</button>
+    <button class="opt" id="lock" disabled onclick="go('secret')"></button>
+  </div>
+</div>
+
+<!-- BLUE -->
+<div id="blue" class="screen">
+  <button class="back" onclick="go('')">&lt; volver</button>
+  <div class="word">
+    <div class="tile green"></div> <!-- V = verde -->
+    <div class="tile">I</div>
+    <div class="tile">G</div>
+    <div class="tile">E</div>
+    <div class="tile">N</div>
+    <div class="tile">E</div>
+    <div class="tile red"></div>   <!-- R = rojo -->
+    <div class="tile">E</div>
+  </div>
+</div>
+
+<!-- IS (minijuego) -->
+<div id="game" class="screen">
+  <button class="back" onclick="go('')">&lt; volver</button>
+  <canvas id="cv"></canvas>
+  <div id="morse">
+    <p>-.-. .-. .- ,</p>
+    <p>.. -. ... - .-. ..- -- . -. - --- ...</p>
+  </div>
+</div>
+
+<!-- ? -->
+<div id="secret" class="screen">
+  <button class="back" onclick="go('')">&lt; volver</button>
+  <div class="msg" id="everywhere">everywhere at once</div>
+</div>
+
+<script>
+/* ---------- estado guardado ---------- */
+const KEY = 'puzzle_done';
+function isDone(){ try{ return localStorage.getItem(KEY)==='1'; }catch(e){ return false; } }
+function setDone(){ try{ localStorage.setItem(KEY,'1'); }catch(e){} }
+
+/* ---------- navegacion simple ---------- */
+function go(name){ location.hash = name; }
+function show(){
+  let name = location.hash.replace('#','') || 'menu';
+  if(name==='is') name='game';
+  if(name==='secret' && !isDone()) name='menu';
+  if(!document.getElementById(name)) name='menu';
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(name).classList.add('active');
+
+  const lock = document.getElementById('lock');
+  if(isDone()){ lock.disabled=false; lock.textContent='?'; }
+
+  stopGame(); stopSecret();
+  if(name==='game') startGame();
+  if(name==='secret') startSecret();
+}
+window.addEventListener('hashchange', show);
+
+/* ---------- minijuego ---------- */
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const GOAL = 100;
+let raf=null, drops=[], caught=0, mouseX=0, lastSpawn=0, finished=false;
+const paddle = {x:0, w:110, h:10};
+
+function resize(){ cv.width=innerWidth; cv.height=innerHeight; }
+addEventListener('resize', resize);
+cv.addEventListener('mousemove', e=>{ mouseX=e.clientX; });
+cv.addEventListener('touchmove', e=>{ mouseX=e.touches[0].clientX; e.preventDefault(); },{passive:false});
+
+function startGame(){
+  resize();
+  drops=[]; caught=0; finished=false; lastSpawn=0;
+  paddle.x = mouseX = cv.width/2;
+  document.getElementById('morse').classList.remove('show');
+  raf = requestAnimationFrame(loop);
+}
+function stopGame(){ if(raf){ cancelAnimationFrame(raf); raf=null; } }
+
+function loop(t){
+  const W=cv.width, H=cv.height, py=H-50;
+  // la barra sigue el cursor (solo horizontal)
+  paddle.x += (mouseX - paddle.x)*0.35;
+  paddle.x = Math.max(paddle.w/2, Math.min(W-paddle.w/2, paddle.x));
+
+  // aparecen puntos "infinitos" (nunca se muestra el conteo)
+  if(t-lastSpawn > 260){
+    lastSpawn=t;
+    drops.push({x:Math.random()*(W-20)+10, y:-10, v:2.5+Math.random()*2.5, line:Math.random()<0.4});
+  }
+
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#fff';
+
+  for(let i=drops.length-1;i>=0;i--){
+    const d=drops[i]; d.y+=d.v;
+    if(d.line) ctx.fillRect(d.x-1,d.y-14,2,28); else { ctx.beginPath(); ctx.arc(d.x,d.y,4,0,7); ctx.fill(); }
+    const hit = d.y>=py-8 && d.y<=py+paddle.h+8 && Math.abs(d.x-paddle.x)<=paddle.w/2+4;
+    if(hit){
+      drops.splice(i,1); caught++;
+      if(caught>=GOAL && !finished){ finish(); }
+    } else if(d.y>H+20){
+      drops.splice(i,1); // se pierde, no pasa nada
+    }
+  }
+
+  ctx.fillStyle='#fff';
+  ctx.fillRect(paddle.x-paddle.w/2, py, paddle.w, paddle.h);
+
+  if(!finished) raf=requestAnimationFrame(loop);
+}
+
+function finish(){
+  finished=true;
+  setDone();
+  setTimeout(()=>document.getElementById('morse').classList.add('show'), 400);
+  const lock=document.getElementById('lock');
+  lock.disabled=false; lock.textContent='?';
+}
+
+/* ---------- pantalla "?" ---------- */
+let secretTimer=null;
+const secret=document.getElementById('secret');
+function startSecret(){
+  secret.style.transition='none';
+  secret.style.background='#000';
+  void secret.offsetWidth;
+  // a los 20 s empieza a aclararse muy lentamente (60 s hasta blanco)
+  secretTimer=setTimeout(()=>{
+    secret.style.transition='background-color 60s linear';
+    secret.style.background='#fff';
+  }, 20000);
+}
+function stopSecret(){ clearTimeout(secretTimer); }
+
+show();
+</script>
+</body>
+</html>

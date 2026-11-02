@@ -14,8 +14,8 @@
   #menu .opts{display:flex;flex-direction:column;align-items:center;gap:1.8rem}
   .opt{background:none;border:1px solid #fff;color:#fff;font:inherit;font-size:1.4rem;
        letter-spacing:.3em;width:14rem;height:4rem;cursor:pointer;transition:background .2s,color .2s}
-  .opt:hover:not(:disabled){background:#fff;color:#000}
-  .opt:disabled{border-color:#444;cursor:not-allowed}
+  .opt:hover:not(.locked){background:#fff;color:#000}
+  .opt.locked{border-color:#444}   /* se ve apagado, pero se puede presionar */
 
   .back{position:fixed;top:1rem;left:1rem;background:none;border:none;color:#777;font:inherit;cursor:pointer;z-index:5}
   .back:hover{color:#fff}
@@ -43,7 +43,7 @@
   <div class="opts">
     <button class="opt" onclick="go('blue')">blue</button>
     <button class="opt" onclick="go('is')">is</button>
-    <button class="opt" id="lock" disabled onclick="go('secret')"></button>
+    <button class="opt locked" id="lock" onclick="openLock()"></button>
   </div>
 </div>
 
@@ -77,6 +77,17 @@ function setDone(){ try{ localStorage.setItem(KEY,'1'); }catch(e){} }
 
 /* ---------- navegacion simple ---------- */
 function go(name){ location.hash = name; }
+
+// El boton bloqueado se puede presionar, pero solo entra si ya hiciste el puzzle
+function openLock(){
+  if(isDone()) go('secret');
+}
+function unlockButton(){
+  const lock=document.getElementById('lock');
+  lock.classList.remove('locked');
+  lock.textContent='?';
+}
+
 function show(){
   let name = location.hash.replace('#','') || 'menu';
   if(name==='is') name='game';
@@ -85,8 +96,7 @@ function show(){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(name).classList.add('active');
 
-  const lock = document.getElementById('lock');
-  if(isDone()){ lock.disabled=false; lock.textContent='?'; }
+  if(isDone()) unlockButton();
 
   stopBlue(); stopGame(); stopSecret();
   if(name==='blue') startBlue();
@@ -95,7 +105,7 @@ function show(){
 }
 window.addEventListener('hashchange', show);
 
-/* ---------- blue: V-I-G-E-N-E-R-E, uno por uno ---------- */
+/* ---------- blue: V-I-G-E-N-E-R-E en bucle continuo ---------- */
 // c = color de toda la pantalla, t = letra grande en el centro
 const SEQ = [
   {c:'#00c853'},   // V = verde
@@ -103,19 +113,19 @@ const SEQ = [
   {c:'#e53935'},   // R = rojo
   {t:'E'}
 ];
+const STEP_MS = 1400;   // cuanto dura cada imagen
 let seqTimer=null;
 function startBlue(){
   const f=document.getElementById('flash');
   let i=0;
-  function clear(){ f.style.background='#000'; f.textContent=''; }
   function step(){
-    if(i>=SEQ.length){ i=0; clear(); seqTimer=setTimeout(step,2500); return; }
-    const s=SEQ[i++];
+    const s=SEQ[i];
     f.style.background=s.c||'#000';
     f.textContent=s.t||'';
-    seqTimer=setTimeout(()=>{ clear(); seqTimer=setTimeout(step,250); },1400);
+    i=(i+1)%SEQ.length;                 // al llegar al final vuelve a la primera
+    seqTimer=setTimeout(step,STEP_MS);
   }
-  clear(); step();
+  step();
 }
 function stopBlue(){
   clearTimeout(seqTimer);
@@ -180,8 +190,7 @@ function finish(){
   finished=true;
   setDone();
   setTimeout(()=>document.getElementById('morse').classList.add('show'), 400);
-  const lock=document.getElementById('lock');
-  lock.disabled=false; lock.textContent='?';
+  unlockButton();
 }
 
 /* ---------- pantalla "?" ---------- */
@@ -203,7 +212,6 @@ show();
 </script>
 </body>
 </html>
-
 show();
 </script>
 </body>

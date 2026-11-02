@@ -20,12 +20,9 @@
   .back{position:fixed;top:1rem;left:1rem;background:none;border:none;color:#777;font:inherit;cursor:pointer;z-index:5}
   .back:hover{color:#fff}
 
-  /* VIGENERE */
-  #blue .word{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center}
-  .tile{width:clamp(48px,10vw,110px);height:clamp(64px,13vw,140px);display:flex;align-items:center;
-        justify-content:center;font-size:clamp(2.5rem,8vw,6rem);font-weight:bold}
-  .tile.green{background:#00c853}
-  .tile.red{background:#e53935}
+  /* BLUE: una letra o color a la vez, a pantalla completa */
+  #flash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+         background:#000;color:#fff;font-weight:bold;font-size:min(60vh,60vw);line-height:1}
 
   /* GAME */
   #game canvas{display:block;width:100%;height:100%;cursor:none}
@@ -53,16 +50,7 @@
 <!-- BLUE -->
 <div id="blue" class="screen">
   <button class="back" onclick="go('')">&lt; volver</button>
-  <div class="word">
-    <div class="tile green"></div> <!-- V = verde -->
-    <div class="tile">I</div>
-    <div class="tile">G</div>
-    <div class="tile">E</div>
-    <div class="tile">N</div>
-    <div class="tile">E</div>
-    <div class="tile red"></div>   <!-- R = rojo -->
-    <div class="tile">E</div>
-  </div>
+  <div id="flash"></div>
 </div>
 
 <!-- IS (minijuego) -->
@@ -78,7 +66,7 @@
 <!-- ? -->
 <div id="secret" class="screen">
   <button class="back" onclick="go('')">&lt; volver</button>
-  <div class="msg" id="everywhere">everywhere at once</div>
+  <div class="msg">everywhere at once</div>
 </div>
 
 <script>
@@ -100,11 +88,40 @@ function show(){
   const lock = document.getElementById('lock');
   if(isDone()){ lock.disabled=false; lock.textContent='?'; }
 
-  stopGame(); stopSecret();
+  stopBlue(); stopGame(); stopSecret();
+  if(name==='blue') startBlue();
   if(name==='game') startGame();
   if(name==='secret') startSecret();
 }
 window.addEventListener('hashchange', show);
+
+/* ---------- blue: V-I-G-E-N-E-R-E, uno por uno ---------- */
+// c = color de toda la pantalla, t = letra grande en el centro
+const SEQ = [
+  {c:'#00c853'},   // V = verde
+  {t:'I'}, {t:'G'}, {t:'E'}, {t:'N'}, {t:'E'},
+  {c:'#e53935'},   // R = rojo
+  {t:'E'}
+];
+let seqTimer=null;
+function startBlue(){
+  const f=document.getElementById('flash');
+  let i=0;
+  function clear(){ f.style.background='#000'; f.textContent=''; }
+  function step(){
+    if(i>=SEQ.length){ i=0; clear(); seqTimer=setTimeout(step,2500); return; }
+    const s=SEQ[i++];
+    f.style.background=s.c||'#000';
+    f.textContent=s.t||'';
+    seqTimer=setTimeout(()=>{ clear(); seqTimer=setTimeout(step,250); },1400);
+  }
+  clear(); step();
+}
+function stopBlue(){
+  clearTimeout(seqTimer);
+  const f=document.getElementById('flash');
+  f.style.background='#000'; f.textContent='';
+}
 
 /* ---------- minijuego ---------- */
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
@@ -181,6 +198,11 @@ function startSecret(){
   }, 20000);
 }
 function stopSecret(){ clearTimeout(secretTimer); }
+
+show();
+</script>
+</body>
+</html>
 
 show();
 </script>
